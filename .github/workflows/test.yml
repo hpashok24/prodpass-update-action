@@ -29,14 +29,32 @@ jobs:
     needs: unit
     runs-on: ubuntu-latest
     environment: dev
+    env:
+      # The URL isn't secret, so a variable is preferred, but a secret of the same name works too
+      PRODPASS_URL: ${{ vars.PRODPASS_URL || secrets.PRODPASS_URL }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check the dev environment settings
+        env:
+          HAS_TOKEN: ${{ secrets.PRODPASS_TOKEN != '' }}
+        run: |
+          missing=0
+          if [ -z "$PRODPASS_URL" ]; then
+            echo "::error::PRODPASS_URL is not set in the 'dev' environment: add it under Settings > Environments > dev > Environment variables"
+            missing=1
+          fi
+          if [ "$HAS_TOKEN" != "true" ]; then
+            echo "::error::PRODPASS_TOKEN is not set in the 'dev' environment: add it under Settings > Environments > dev > Environment secrets"
+            missing=1
+          fi
+          exit $missing
 
       - name: Record a test deployment
         id: deploy
         uses: ./
         with:
-          prodpass_url: ${{ vars.PRODPASS_URL }}
+          prodpass_url: ${{ env.PRODPASS_URL }}
           prodpass_token: ${{ secrets.PRODPASS_TOKEN }}
           instance: ${{ inputs.instance }}
           version: e2e-${{ github.run_id }}
@@ -44,7 +62,7 @@ jobs:
       - name: Send the same event again (must be ignored)
         uses: ./
         with:
-          prodpass_url: ${{ vars.PRODPASS_URL }}
+          prodpass_url: ${{ env.PRODPASS_URL }}
           prodpass_token: ${{ secrets.PRODPASS_TOKEN }}
           instance: ${{ inputs.instance }}
           version: e2e-${{ github.run_id }}
@@ -55,7 +73,7 @@ jobs:
         continue-on-error: true
         uses: ./
         with:
-          prodpass_url: ${{ vars.PRODPASS_URL }}
+          prodpass_url: ${{ env.PRODPASS_URL }}
           prodpass_token: ${{ secrets.PRODPASS_TOKEN }}
           instance: e2e-no-such-instance-${{ github.run_id }}
           version: "0.0.0"
