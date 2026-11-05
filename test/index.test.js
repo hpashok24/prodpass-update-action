@@ -141,6 +141,12 @@ test('a hung connection times out and fails after the retries', async () => {
   } finally { pp.close(); }
 });
 
+// GitHub evaluates ${{ }} anywhere in action.yml, descriptions included, and refuses to load the action
+test('action.yml contains no expressions', () => {
+  const yml = fs.readFileSync(path.join(__dirname, '..', 'action.yml'), 'utf8');
+  assert.doesNotMatch(yml, /\$\{\{/);
+});
+
 test('a non-JSON 200 (e.g. a proxy page) is an error, not a success', async () => {
   const pp = await mockProdPass([{ status: 200, body: '<html>login</html>' }]);
   try {

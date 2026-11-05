@@ -31,7 +31,7 @@ inputs:
     description: 'The version deployed. A successful deployment updates the instance, or the component on it.'
     required: true
   status:
-    description: 'succeeded, failed, in_progress or rolled_back. GitHub job statuses work too: success -> succeeded, failure and cancelled -> failed. Pass ${{ job.status }} to report the job outcome.'
+    description: 'succeeded, failed, in_progress or rolled_back. GitHub job statuses work too: success -> succeeded, failure and cancelled -> failed. Pass the job.status expression to report the job outcome.'
     required: false
     default: 'succeeded'
 
