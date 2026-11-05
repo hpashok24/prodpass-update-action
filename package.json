@@ -1,0 +1,9 @@
+{
+  "name": "prodpass-update-action",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GitHub Action: record a deployment in ProdPass",
+  "main": "dist/index.js",
+  "scripts": { "test": "node test/index.test.js" },
+  "license": "MIT"
+}
