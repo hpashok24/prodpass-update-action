@@ -2,13 +2,6 @@ name: Update ProdPass version
 
 on:
   workflow_dispatch:
-    inputs:
-      instance:
-        description: "Instance code, e.g. order-service.uat2"
-        required: true
-      version:
-        description: "Version, e.g. 1.4.2"
-        required: true
 
 permissions: {}
 
@@ -21,5 +14,5 @@ jobs:
         with:
           prodpass_url: ${{ vars.PRODPASS_URL || secrets.PRODPASS_URL }}
           prodpass_token: ${{ secrets.PRODPASS_TOKEN }}
-          instance: ${{ inputs.instance }}
-          version: ${{ inputs.version }}
+          instance: order-service.uat2
+          version: "1.5.0"
