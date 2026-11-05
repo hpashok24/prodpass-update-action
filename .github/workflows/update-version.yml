@@ -10,17 +10,14 @@ on:
         description: "Version, e.g. 1.4.2"
         required: true
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   update:
     runs-on: ubuntu-latest
     environment: dev
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: ./
+      - uses: hpashok24/prodpass-update-action@main
         with:
           prodpass_url: ${{ vars.PRODPASS_URL || secrets.PRODPASS_URL }}
           prodpass_token: ${{ secrets.PRODPASS_TOKEN }}
