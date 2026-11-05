@@ -133,7 +133,7 @@ Keep the version in quotes so values like `1.10` stay text.
 ## Development
 
 ```bash
-npm test
+node test/index.test.js
 ```
 
 Runs the unit tests against a local mock of ProdPass. The **Test** workflow runs them on every push, and can run an end-to-end check against a real ProdPass from **Actions › Test › Run workflow** (needs the `dev` environment above).
