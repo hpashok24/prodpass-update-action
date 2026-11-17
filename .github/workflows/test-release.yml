@@ -1,0 +1,114 @@
+name: Test release deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      instance:
+        description: ProdPass instance code (e.g. order-service.uat2)
+        required: true
+      release:
+        description: ProdPass release code (e.g. REL-00012)
+        required: true
+      version:
+        description: Version to record (leave empty for a unique test version)
+        required: false
+        default: ""
+      project:
+        description: Project code (optional; defaults to the release's project)
+        required: false
+        default: ""
+      status:
+        description: Deployment result to record
+        type: choice
+        options: [succeeded, failed, in_progress, rolled_back]
+        default: succeeded
+
+permissions: {}
+
+jobs:
+  release-deploy:
+    runs-on: ubuntu-latest
+    environment: dev            # holds PRODPASS_URL (variable) + PRODPASS_TOKEN (secret)
+    env:
+      PRODPASS_URL: ${{ vars.PRODPASS_URL || secrets.PRODPASS_URL }}
+    steps:
+      - name: Check the dev environment settings
+        env:
+          HAS_TOKEN: ${{ secrets.PRODPASS_TOKEN != '' }}
+        run: |
+          [ -n "$PRODPASS_URL" ] || { echo "::error::PRODPASS_URL is not set in the 'dev' environment"; exit 1; }
+          [ "$HAS_TOKEN" = "true" ] || { echo "::error::PRODPASS_TOKEN is not set in the 'dev' environment"; exit 1; }
+
+      - name: Note the start time
+        id: start
+        run: echo "at=$(date -u -d '-2 minutes' +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      # 1. Record the release deployment
+      - name: Record release deployment
+        id: deploy
+        uses: hpashok24/prodpass-update-action@main
+        with:
+          prodpass_url: ${{ env.PRODPASS_URL }}
+          prodpass_token: ${{ secrets.PRODPASS_TOKEN }}
+          instance: ${{ inputs.instance }}
+          version: ${{ inputs.version || format('release-test-{0}', github.run_id) }}
+          release: ${{ inputs.release }}
+          project: ${{ inputs.project }}
+          status: ${{ inputs.status }}
+          started_at: ${{ steps.start.outputs.at }}
+
+      # 2. Same event again: ProdPass must answer "already recorded" and change nothing
+      - name: Send the same event again
+        id: repeat
+        uses: hpashok24/prodpass-update-action@main
+        with:
+          prodpass_url: ${{ env.PRODPASS_URL }}
+          prodpass_token: ${{ secrets.PRODPASS_TOKEN }}
+          instance: ${{ inputs.instance }}
+          version: ${{ inputs.version || format('release-test-{0}', github.run_id) }}
+          release: ${{ inputs.release }}
+          project: ${{ inputs.project }}
+          status: ${{ inputs.status }}
+          started_at: ${{ steps.start.outputs.at }}
+          event_id: ${{ steps.deploy.outputs.event_id }}
+
+      # 3. A release code with a space must be refused by the action before any call
+      - name: Bad release code must fail
+        id: badcode
+        continue-on-error: true
+        uses: hpashok24/prodpass-update-action@main
+        with:
+          prodpass_url: ${{ env.PRODPASS_URL }}
+          prodpass_token: ${{ secrets.PRODPASS_TOKEN }}
+          instance: ${{ inputs.instance }}
+          version: "0.0.0"
+          release: "REL 00012"
+
+      - name: Check results
+        env:
+          OUTCOME: ${{ steps.deploy.outputs.outcome }}
+          SUMMARY: ${{ steps.deploy.outputs.summary }}
+          LINKED_RELEASE: ${{ steps.deploy.outputs.release }}
+          LINKED_PROJECT: ${{ steps.deploy.outputs.project }}
+          REPEAT_SUMMARY: ${{ steps.repeat.outputs.summary }}
+          BADCODE: ${{ steps.badcode.outcome }}
+          RELEASE: ${{ inputs.release }}
+          RESPONSE: ${{ steps.deploy.outputs.response }}
+        run: |
+          echo "Outcome:        $OUTCOME"
+          echo "Summary:        $SUMMARY"
+          echo "Linked release: ${LINKED_RELEASE:-<empty>}"
+          echo "Linked project: ${LINKED_PROJECT:-<empty>}"
+          echo "Repeat:         $REPEAT_SUMMARY"
+          echo "Bad code step:  $BADCODE"
+          echo "Raw reply:      $RESPONSE"
+
+          fail=0
+          [ "$OUTCOME" = "applied" ] || { echo "::error::Expected outcome applied, got '$OUTCOME'"; fail=1; }
+          [ "$LINKED_RELEASE" = "$RELEASE" ] || { echo "::error::Expected release $RELEASE, got '$LINKED_RELEASE'"; fail=1; }
+          [ "$BADCODE" = "failure" ] || { echo "::error::A release code with a space was not refused"; fail=1; }
+          case "$REPEAT_SUMMARY" in
+            *"already recorded"*) ;;
+            *) echo "::warning::Repeat was not reported as 'already recorded' - check Recent calls in ProdPass" ;;
+          esac
+          exit $fail
