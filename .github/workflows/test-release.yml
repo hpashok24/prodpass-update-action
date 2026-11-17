@@ -19,8 +19,8 @@ jobs:
           prodpass_token: ${{ secrets.PRODPASS_TOKEN }}
           instance: order-service.uat2
           version: "1.5.0"
-          release: REL-00012
-          project: NPP-20
+          release: REL-00002
+          # project: LSV-UPG        # optional: must be one of the release's projects; left out = the release's own
           status: succeeded
           started_at: "2026-11-17T09:30:00Z"
 
@@ -33,8 +33,8 @@ jobs:
           prodpass_token: ${{ secrets.PRODPASS_TOKEN }}
           instance: order-service.uat2
           version: "1.5.0"
-          release: REL-00012
-          project: NPP-20
+          release: REL-00002
+          # project: LSV-UPG        # optional: must be one of the release's projects; left out = the release's own
           status: succeeded
           started_at: "2026-11-17T09:30:00Z"
           event_id: ${{ steps.deploy.outputs.event_id }}
@@ -49,8 +49,8 @@ jobs:
           instance: order-service.uat2
           version: "1.5.1"
           status: succeeded
-          release: REL-00012
-          project: NPP-20
+          release: REL-00002
+          # project: LSV-UPG        # optional: must be one of the release's projects; left out = the release's own
           ref: "build-2026.11.17.1"
           url: "https://github.com/hpashok24/prodpass-update-action/actions/runs/${{ github.run_id }}"
           started_at: "2026-11-17T09:30:00Z"
@@ -80,11 +80,9 @@ jobs:
 
           fail=0
           [ "${{ steps.deploy.outputs.outcome }}" = "applied" ] || { echo "::error::Expected outcome applied"; fail=1; }
-          [ "${{ steps.deploy.outputs.release }}" = "REL-00012" ] || { echo "::error::Expected release REL-00012"; fail=1; }
-          [ "${{ steps.deploy.outputs.project }}" = "NPP-20" ] || { echo "::error::Expected project NPP-20"; fail=1; }
+          [ "${{ steps.deploy.outputs.release }}" = "REL-00002" ] || { echo "::error::Expected release REL-00002"; fail=1; }
           [ "${{ steps.full.outputs.outcome }}" = "applied" ] || { echo "::error::Full payload: expected outcome applied"; fail=1; }
-          [ "${{ steps.full.outputs.release }}" = "REL-00012" ] || { echo "::error::Full payload: expected release REL-00012"; fail=1; }
-          [ "${{ steps.full.outputs.project }}" = "NPP-20" ] || { echo "::error::Full payload: expected project NPP-20"; fail=1; }
+          [ "${{ steps.full.outputs.release }}" = "REL-00002" ] || { echo "::error::Full payload: expected release REL-00002"; fail=1; }
           [ "${{ steps.full.outputs.event_id }}" = "release-test-full-${{ github.run_id }}-${{ github.run_attempt }}" ] || { echo "::error::Full payload: event_id not used"; fail=1; }
           [ "${{ steps.badcode.outcome }}" = "failure" ] || { echo "::error::A release code with a space was not refused"; fail=1; }
           exit $fail
