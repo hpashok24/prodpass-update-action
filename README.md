@@ -67,6 +67,37 @@ Keep the version in quotes so values like `1.10` stay text.
           status: ${{ job.status }}
 ```
 
+**A release deployment**, linked to a ProdPass release. A successful production deployment linked to an approved (go) release can complete it:
+
+```yaml
+      - uses: hpashok24/prodpass-update-action@v1
+        if: always()
+        with:
+          prodpass_url: ${{ vars.PRODPASS_URL }}
+          prodpass_token: ${{ secrets.PRODPASS_TOKEN }}
+          instance: order-service.prod
+          version: ${{ github.ref_name }}
+          release: REL-00012
+          status: ${{ job.status }}
+```
+
+This sends:
+
+```json
+{
+  "instance": "order-service.prod",
+  "version": "v1.5.0",
+  "status": "succeeded",
+  "release": "REL-00012",
+  "ref": "abcdef1",
+  "url": "https://github.com/acme/order-service/actions/runs/42",
+  "finishedAt": "2026-11-17T09:41:12.000Z",
+  "eventId": "gh:acme/order-service:42:1:deploy:order-service.prod:succeeded"
+}
+```
+
+The linked release is available as `steps.<id>.outputs.release`. Leave `release` out and ProdPass matches one by system and version; `release: none` skips linking. Component deployments aren't matched by version, so the action warns when `component` is set without `release`.
+
 **A component of a system**, when the pipeline knows the system and environment rather than the instance code. A new component code adds the component:
 
 ```yaml
@@ -90,8 +121,8 @@ Keep the version in quotes so values like `1.10` stay text.
 | `component` | | Component code for a system deployed in parts. |
 | `version` | ✅ | The version deployed. |
 | `status` | | `succeeded` (default), `failed`, `in_progress`, `rolled_back`, or a job status (`success`, `failure`, `cancelled`). Only a successful deployment updates the version. |
-| `release` | | Release code, e.g. `REL-00012`. Left out, ProdPass matches by system and version; `none` skips matching. |
-| `project` | | Project code. Left out, the release's project. |
+| `release` | | Release code or id, e.g. `REL-00012`. Left out, ProdPass matches by system and version (not for components); `none` skips linking. No spaces. |
+| `project` | | Project code or id. Left out, the release's project; `none` leaves it empty. |
 | `ref` | | Build or change reference. Default: the commit's short SHA. |
 | `url` | | Link to the run. Default: this workflow run. |
 | `started_at`, `finished_at` | | ISO 8601 times. `finished_at` defaults to now (not for `in_progress`). |
@@ -106,6 +137,8 @@ Keep the version in quotes so values like `1.10` stay text.
 | `outcome` | `applied` or `unmatched`. |
 | `summary` | ProdPass's one-line summary. |
 | `event_id` | The event ID sent, to find the call in ProdPass's **Recent calls**. |
+| `release` | The release the deployment was linked to (ProdPass's reply, else the one sent). Empty when none. |
+| `project` | The project it was linked to. Empty when none. |
 | `response` | The raw JSON reply. |
 
 ## Notes
