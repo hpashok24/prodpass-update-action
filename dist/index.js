@@ -30,6 +30,29 @@ function checkIsoTime(value, name) {
   }
 }
 
+// Release and project are a code (REL-00012), an id, or "none" (any case) to opt out of linking
+function normalizeLink(raw, name) {
+  if (!raw) return undefined;
+  if (raw.toLowerCase() === 'none') return 'none';
+
+  if (/\s/.test(raw)) {
+    throw new Error(`${name} must be a single code or id with no spaces (e.g. ${name === 'release' ? 'REL-00012' : 'NPP-20'}), got "${raw}"`);
+  }
+
+  if (raw.length > 64) {
+    throw new Error(`${name} is too long (${raw.length} characters): use the ${name}'s code or id`);
+  }
+
+  return raw;
+}
+
+// ProdPass may answer with the linked release/project as a code string or an object; read either
+function linkFromReply(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  return value.code || value.id || '';
+}
+
 // Repeat-safe but unique per attempt and result, as ProdPass asks
 function defaultEventId(env, target, status) {
   const parts = [
@@ -87,6 +110,15 @@ function buildRequest(env = process.env) {
   }
 
   const component = getInput('component', env);
+  const release = normalizeLink(getInput('release', env), 'release');
+  const project = normalizeLink(getInput('project', env), 'project');
+  const warnings = [];
+
+  // A component deployment is not matched to a release by version, so it only links when named
+  if (component && !release) {
+    warnings.push(`component "${component}" is deployed without a release: ProdPass won't match component deployments to a release by version, so set release (or release: none to silence this)`);
+  }
+
   const target = [instance || `${system}@${environment}`, component].filter(Boolean).join('/');
 
   const runUrl = env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY && env.GITHUB_RUN_ID
@@ -98,8 +130,8 @@ function buildRequest(env = process.env) {
     ...(component && { component }),
     version,
     status,
-    ...(getInput('release', env) && { release: getInput('release', env) }),
-    ...(getInput('project', env) && { project: getInput('project', env) }),
+    ...(release && { release }),
+    ...(project && { project }),
     ref: getInput('ref', env) || (env.GITHUB_SHA || '').slice(0, 7) || undefined,
     url: getInput('url', env) || runUrl || undefined,
     ...(startedAt && { startedAt }),
@@ -116,7 +148,8 @@ function buildRequest(env = process.env) {
     token,
     body: JSON.parse(JSON.stringify(body)), // drops undefined fields
     timeoutMs: timeout * 1000,
-    failOnUnmatched: getInput('fail_on_unmatched', env).toLowerCase() !== 'false'
+    failOnUnmatched: getInput('fail_on_unmatched', env).toLowerCase() !== 'false',
+    warnings
   };
 }
 
@@ -183,31 +216,43 @@ function writeOutputs(env, values) {
   }
 }
 
-function writeSummary(env, body, outcome, summary) {
+// Release/project ProdPass linked: its reply when it says, else what was sent (not "none")
+function linkedValues(json, body) {
+  const d = (json && typeof json.deployment === 'object' && json.deployment) || {};
+  const pick = (key) => linkFromReply(json && json[key]) || linkFromReply(d[key]) || (body[key] && body[key] !== 'none' ? body[key] : '');
+
+  return { release: pick('release'), project: pick('project') };
+}
+
+function writeSummary(env, body, outcome, summary, linked) {
   if (!env.GITHUB_STEP_SUMMARY) return;
 
   const target = body.instance || `${body.system} in ${body.environment}`;
   const icon = outcome === 'applied' ? '✅' : '⚠️';
+  const releaseCell = linked.release || (body.release === 'none' ? 'none' : 'matched by version');
 
   fs.appendFileSync(env.GITHUB_STEP_SUMMARY, [
     '### ProdPass deployment',
     '',
-    '| Target | Component | Version | Status | Outcome |',
-    '|---|---|---|---|---|',
-    `| ${target} | ${body.component || '-'} | ${body.version} | ${body.status} | ${icon} ${outcome}: ${oneLine(summary)} |`,
+    '| Target | Component | Version | Release | Project | Status | Outcome |',
+    '|---|---|---|---|---|---|---|',
+    `| ${target} | ${body.component || '-'} | ${body.version} | ${oneLine(releaseCell)} | ${oneLine(linked.project || '-')} | ${body.status} | ${icon} ${outcome}: ${oneLine(summary)} |`,
     ''
   ].join('\n') + '\n');
 }
 
 async function run(env = process.env, opts = {}) {
-  const { url, token, body, timeoutMs, failOnUnmatched } = buildRequest(env);
+  const { url, token, body, timeoutMs, failOnUnmatched, warnings } = buildRequest(env);
   const payload = JSON.stringify(body);
 
   if (url.protocol === 'http:') {
     console.warn('⚠️ prodpass_url uses http:// - the token is sent unencrypted');
   }
 
+  for (const w of warnings) console.log(`::warning::${oneLine(w)}`);
+
   console.log(`📡 POST ${url.origin}${url.pathname}`);
+  console.log(`🏷️ Release: ${body.release || '(not given: ProdPass matches by system and version)'}${body.project ? `, project: ${body.project}` : ''}`);
   console.log(`📦 ${payload}`);
 
   const res = await postWithRetry(url, token, payload, timeoutMs, opts);
@@ -229,8 +274,10 @@ async function run(env = process.env, opts = {}) {
   const outcome = res.json.outcome || '';
   const summary = res.json.summary || '';
 
-  writeOutputs(env, { outcome, summary, event_id: body.eventId, response: JSON.stringify(res.json) });
-  writeSummary(env, body, outcome, summary);
+  const linked = linkedValues(res.json, body);
+
+  writeOutputs(env, { outcome, summary, event_id: body.eventId, release: linked.release, project: linked.project, response: JSON.stringify(res.json) });
+  writeSummary(env, body, outcome, summary, linked);
 
   if (outcome === 'unmatched') {
     const msg = `ProdPass did not record the deployment: ${summary}`;
@@ -245,7 +292,7 @@ async function run(env = process.env, opts = {}) {
   return res.json;
 }
 
-module.exports = { run, buildRequest, normalizeStatus, defaultEventId };
+module.exports = { run, buildRequest, normalizeStatus, normalizeLink, linkedValues, defaultEventId };
 
 if (require.main === module) {
   run().catch((err) => {
