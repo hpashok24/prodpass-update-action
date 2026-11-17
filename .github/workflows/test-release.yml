@@ -8,14 +8,14 @@ permissions: {}
 jobs:
   release-deploy:
     runs-on: ubuntu-latest
-    environment: dev            # holds PRODPASS_URL (variable) + PRODPASS_TOKEN (secret)
+    environment: dev            # holds PRODPASS_URL + PRODPASS_TOKEN (secrets)
     steps:
       # 1. Record the release deployment
       - name: Record release deployment
         id: deploy
         uses: hpashok24/prodpass-update-action@main
         with:
-          prodpass_url: ${{ vars.PRODPASS_URL }}
+          prodpass_url: ${{ vars.PRODPASS_URL || secrets.PRODPASS_URL }}
           prodpass_token: ${{ secrets.PRODPASS_TOKEN }}
           instance: order-service.uat2
           version: "1.5.0"
@@ -29,7 +29,7 @@ jobs:
         id: repeat
         uses: hpashok24/prodpass-update-action@main
         with:
-          prodpass_url: ${{ vars.PRODPASS_URL }}
+          prodpass_url: ${{ vars.PRODPASS_URL || secrets.PRODPASS_URL }}
           prodpass_token: ${{ secrets.PRODPASS_TOKEN }}
           instance: order-service.uat2
           version: "1.5.0"
@@ -44,7 +44,7 @@ jobs:
         id: full
         uses: hpashok24/prodpass-update-action@main
         with:
-          prodpass_url: ${{ vars.PRODPASS_URL }}
+          prodpass_url: ${{ vars.PRODPASS_URL || secrets.PRODPASS_URL }}
           prodpass_token: ${{ secrets.PRODPASS_TOKEN }}
           instance: order-service.uat2
           version: "1.5.1"
@@ -65,7 +65,7 @@ jobs:
         continue-on-error: true
         uses: hpashok24/prodpass-update-action@main
         with:
-          prodpass_url: ${{ vars.PRODPASS_URL }}
+          prodpass_url: ${{ vars.PRODPASS_URL || secrets.PRODPASS_URL }}
           prodpass_token: ${{ secrets.PRODPASS_TOKEN }}
           instance: order-service.uat2
           version: "1.5.0"
