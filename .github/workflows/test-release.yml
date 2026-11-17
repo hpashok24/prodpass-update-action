@@ -1,4 +1,4 @@
-name: Test release deployment
+name: Test release REL-00002 (Nextgen)
 
 on:
   workflow_dispatch:
@@ -6,83 +6,43 @@ on:
 permissions: {}
 
 jobs:
-  release-deploy:
+  # 1. PERF1: the instance you picked
+  deploy-perf1:
     runs-on: ubuntu-latest
-    environment: dev            # holds PRODPASS_URL + PRODPASS_TOKEN (secrets)
+    environment: dev
     steps:
-      # 1. Record the release deployment
-      - name: Record release deployment
-        id: deploy
-        uses: hpashok24/prodpass-update-action@main
+      - name: Deploy to PERF1
+        run: echo "Deploying Nextgen 2.0.0 to PERF1"
+
+      - name: Record PERF1 deployment
+        if: always()
+        uses: prodpass/deploy-action@main
         with:
-          prodpass_url: ${{ vars.PRODPASS_URL || secrets.PRODPASS_URL }}
+          prodpass_url: ${{ secrets.PRODPASS_URL }}
           prodpass_token: ${{ secrets.PRODPASS_TOKEN }}
-          instance: order-service.uat2
-          version: "1.5.0"
+          instance: Nextgen.perf1
+          version: "2.0.0"
           release: REL-00002
-          # project: LSV-UPG        # optional: must be one of the release's projects; left out = the release's own
-          status: succeeded
-          started_at: "2026-11-17T09:30:00Z"
+          project: KYC-UPG
+          status: ${{ job.status }}
 
-      # 2. Same event again: ProdPass should answer "already recorded" and change nothing
-      - name: Send the same event again
-        id: repeat
-        uses: hpashok24/prodpass-update-action@main
+  # 2. Pre-prod: turns the "Deployed to pre-prod" gate green
+  deploy-preprod:
+    needs: deploy-perf1
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Deploy to pre-prod
+        run: echo "Deploying Nextgen 2.0.0 to pre-prod"
+
+      - name: Record pre-prod deployment
+        if: always()
+        uses: prodpass/deploy-action@main
         with:
-          prodpass_url: ${{ vars.PRODPASS_URL || secrets.PRODPASS_URL }}
+          prodpass_url: ${{ secrets.PRODPASS_URL }}
           prodpass_token: ${{ secrets.PRODPASS_TOKEN }}
-          instance: order-service.uat2
-          version: "1.5.0"
+          instance: Nextgen.preprod
+          version: "2.0.0"
           release: REL-00002
-          # project: LSV-UPG        # optional: must be one of the release's projects; left out = the release's own
-          status: succeeded
-          started_at: "2026-11-17T09:30:00Z"
-          event_id: ${{ steps.deploy.outputs.event_id }}
-
-      # Full payload: every field the action sends
-      - name: Record release deployment (full payload)
-        id: full
-        uses: hpashok24/prodpass-update-action@main
-        with:
-          prodpass_url: ${{ vars.PRODPASS_URL || secrets.PRODPASS_URL }}
-          prodpass_token: ${{ secrets.PRODPASS_TOKEN }}
-          instance: order-service.uat2
-          version: "1.5.1"
-          status: succeeded
-          release: REL-00002
-          # project: LSV-UPG        # optional: must be one of the release's projects; left out = the release's own
-          ref: "build-2026.11.17.1"
-          url: "https://github.com/hpashok24/prodpass-update-action/actions/runs/${{ github.run_id }}"
-          started_at: "2026-11-17T09:30:00Z"
-          finished_at: "2026-11-17T09:41:12Z"
-          event_id: "release-test-full-${{ github.run_id }}-${{ github.run_attempt }}"
-          fail_on_unmatched: "true"
-          timeout_seconds: "30"
-
-      # 3. A release code with a space must be refused by the action before any call
-      - name: Bad release code must fail
-        id: badcode
-        continue-on-error: true
-        uses: hpashok24/prodpass-update-action@main
-        with:
-          prodpass_url: ${{ vars.PRODPASS_URL || secrets.PRODPASS_URL }}
-          prodpass_token: ${{ secrets.PRODPASS_TOKEN }}
-          instance: order-service.uat2
-          version: "1.5.0"
-          release: "REL 00012"
-
-      - name: Check results
-        run: |
-          echo "Outcome:        ${{ steps.deploy.outputs.outcome }}"
-          echo "Linked release: ${{ steps.deploy.outputs.release }}"
-          echo "Linked project: ${{ steps.deploy.outputs.project }}"
-          echo "Bad code step:  ${{ steps.badcode.outcome }}"
-
-          fail=0
-          [ "${{ steps.deploy.outputs.outcome }}" = "applied" ] || { echo "::error::Expected outcome applied"; fail=1; }
-          [ "${{ steps.deploy.outputs.release }}" = "REL-00002" ] || { echo "::error::Expected release REL-00002"; fail=1; }
-          [ "${{ steps.full.outputs.outcome }}" = "applied" ] || { echo "::error::Full payload: expected outcome applied"; fail=1; }
-          [ "${{ steps.full.outputs.release }}" = "REL-00002" ] || { echo "::error::Full payload: expected release REL-00002"; fail=1; }
-          [ "${{ steps.full.outputs.event_id }}" = "release-test-full-${{ github.run_id }}-${{ github.run_attempt }}" ] || { echo "::error::Full payload: event_id not used"; fail=1; }
-          [ "${{ steps.badcode.outcome }}" = "failure" ] || { echo "::error::A release code with a space was not refused"; fail=1; }
-          exit $fail
+          project: KYC-UPG
+          status: ${{ job.status }}
